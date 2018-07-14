@@ -355,7 +355,8 @@ public class GradientPicker extends Region {
 
     @Override public ObservableList<Node> getChildren() { return super.getChildren(); }
 
-    public String getGradient(final boolean CSS) {
+    public List<Stop> getStops() { return gradient.getStops(); }
+    public String getStopsAsString(final boolean CSS) {
         StringBuilder gradientString = new StringBuilder();
         for (Stop stop : gradient.getStops()) {
             if (CSS) {
@@ -390,8 +391,6 @@ public class GradientPicker extends Region {
         }
         return gradientString.toString();
     }
-
-    public List<Stop> getStops() { return gradient.getStops(); }
 
     public boolean isShowing() { return null == showing ? false : showing.get(); }
 
