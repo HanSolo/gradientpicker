@@ -167,8 +167,9 @@ public class GradientPicker extends Region {
 
         colorPicker = new ColorPicker();
         colorPicker.getStyleClass().add("button");
-        colorPicker.setTranslateY(35);
+        colorPicker.setTranslateY(65);
         colorPicker.setVisible(false);
+        colorPicker.setManaged(false);
 
         pane = new Pane(gradientBackground, gradientBox, colorPicker);
 
@@ -389,7 +390,9 @@ public class GradientPicker extends Region {
         }
         return gradientString.toString();
     }
-    
+
+    public List<Stop> getStops() { return gradient.getStops(); }
+
     public boolean isShowing() { return null == showing ? false : showing.get(); }
 
     private void setupBinding() {
