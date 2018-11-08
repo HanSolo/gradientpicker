@@ -6,6 +6,6 @@ import java.util.EventListener;
 
 
 @FunctionalInterface
-public interface HandleEventListener extends EventListener {
+public interface HandleObserver extends EventListener {
     void onHandleEvent(final HandleEvent EVENT);
 }

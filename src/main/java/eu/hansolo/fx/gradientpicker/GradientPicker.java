@@ -1,6 +1,10 @@
 package eu.hansolo.fx.gradientpicker;
 
+import eu.hansolo.fx.gradientpicker.event.GradientEvent;
+import eu.hansolo.fx.gradientpicker.event.GradientEventType;
+import eu.hansolo.fx.gradientpicker.event.GradientObserver;
 import eu.hansolo.fx.gradientpicker.tool.GradientLookup;
+import eu.hansolo.fx.gradientpicker.tool.Helper;
 import eu.hansolo.fx.gradientpicker.tool.NumberTextField;
 import javafx.beans.DefaultProperty;
 import javafx.beans.binding.Bindings;
@@ -41,6 +45,7 @@ import javafx.util.StringConverter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import static eu.hansolo.fx.gradientpicker.tool.Helper.clamp;
@@ -59,12 +64,13 @@ public class GradientPicker extends Region {
     private static final double                   MINIMUM_HEIGHT   = 70;
     private static final double                   MAXIMUM_WIDTH    = 1024;
     private static final double                   MAXIMUM_HEIGHT   = 70;
-    private static final double                   PADDING_LEFT     = 10;
+    private static final double                   PADDING_LEFT     = 13;
     private static final double                   PADDING_RIGHT    = 2 * PADDING_LEFT;
     private static final double                   BOX_HEIGHT       = 20;
-    private static final double                   HANDLE_CENTER    = 4.5;
-    private static final double                   DRAG_Y_OFFSET    = 13;
-    private static final double                   HANDLE_HEIGHT    = 13;
+    private static final double                   HANDLE_CENTER    = Handle.HANDLE_SIZE * 0.5;
+    private static final double                   DRAG_Y_OFFSET    = Handle.HANDLE_SIZE;
+    private static final double                   HANDLE_HEIGHT    = Handle.HANDLE_SIZE;
+    private        final GradientEvent            GRADIENT_CHANGED = new GradientEvent(GradientPicker.this, GradientEventType.GRADIENT_CHANGED);
     private              BooleanBinding           showing;
     private              double                   width;
     private              double                   height;
@@ -90,6 +96,7 @@ public class GradientPicker extends Region {
     private              Rectangle                positionPopupBounds;
     private              NumberTextField          positionTextField;
     private              HBox                     positionBox;
+    private              List<GradientObserver>   observers;
 
 
     // ******************** Constructors **************************************
@@ -117,8 +124,8 @@ public class GradientPicker extends Region {
                 dragX = handle.getLayoutX() - e.getScreenX();
                 dragY = handle.getLayoutY() - e.getScreenY();
             } else if (TYPE.equals(MouseEvent.MOUSE_DRAGGED)) {
-                handle.setLayoutX(clamp(gradientBox.getX() - HANDLE_CENTER, gradientBox.getX() + gradientBox.getWidth() - HANDLE_CENTER, e.getScreenX() + dragX));
-                handle.setLayoutY(clamp(gradientBox.getY() + gradientBox.getHeight(), gradientBox.getY() + gradientBox.getHeight() + DRAG_Y_OFFSET, e.getScreenY() + dragY));
+                handle.setLayoutX(Helper.clamp(gradientBox.getX() - HANDLE_CENTER, gradientBox.getX() + gradientBox.getWidth() - HANDLE_CENTER, e.getScreenX() + dragX));
+                handle.setLayoutY(Helper.clamp(gradientBox.getY() + gradientBox.getHeight(), gradientBox.getY() + gradientBox.getHeight() + DRAG_Y_OFFSET, e.getScreenY() + dragY));
                 handle.setFraction((handle.getLayoutX() - gradientBox.getX() + HANDLE_CENTER) / gradientBox.getWidth());
                 updateGradient();
             } else if (TYPE.equals(MouseEvent.MOUSE_RELEASED)) {
@@ -133,7 +140,8 @@ public class GradientPicker extends Region {
                 }
             }
         };
-        lookup = new GradientLookup();
+        lookup       = new GradientLookup();
+        observers    = new CopyOnWriteArrayList<>();
         initGraphics();
         initPopups();
         registerListeners();
@@ -160,7 +168,7 @@ public class GradientPicker extends Region {
 
         gradientBox = new Rectangle(10, 10, 180, 20);
         gradientBox.setFill(gradient);
-        gradientBox.setStroke(Color.web("#918c8f"));
+        gradientBox.setStroke(Color.web("#353535"));
 
         Tooltip tooltip = new Tooltip("Double click to add a new stop");
         Tooltip.install(gradientBox, tooltip);
@@ -175,7 +183,7 @@ public class GradientPicker extends Region {
 
         getChildren().setAll(pane);
     }
-    
+
     private void initPopups() {
         DropShadow shadow = new DropShadow();
         shadow.setBlurType(BlurType.GAUSSIAN);
@@ -322,7 +330,7 @@ public class GradientPicker extends Region {
             @Override public String toString(Number number) { return String.format(Locale.US, "%.3f", number); }
             @Override public Number fromString(String text) { return (null == text || text.isEmpty()) ? 0.0 : Double.parseDouble(text); }
         });
-        
+
         if (null != getScene()) {
             setupBinding();
         } else {
@@ -395,9 +403,16 @@ public class GradientPicker extends Region {
     public boolean isShowing() { return null == showing ? false : showing.get(); }
 
     private void setupBinding() {
-        showing = Bindings.selectBoolean(sceneProperty(), "window", "showing");
-        showing.addListener((o, ov, nv) -> {
-            if (nv) {
+        showing = Bindings.createBooleanBinding(() -> {
+            if (getScene() != null && getScene().getWindow() != null) {
+                return getScene().getWindow().isShowing();
+            } else {
+                return false;
+            }
+        }, sceneProperty(), getScene().windowProperty(), getScene().getWindow().showingProperty());
+
+        showing.addListener(o -> {
+            if (showing.get()) {
                 addHandle(new Handle(HandleType.COLOR_HANDLE, 0.0, Color.WHITE));
                 addHandle(new Handle(HandleType.COLOR_HANDLE, 1.0, Color.BLACK));
             }
@@ -437,7 +452,7 @@ public class GradientPicker extends Region {
             } else {
                 handle.setLayoutY(gradientBox.getY() - HANDLE_HEIGHT);
             }
-            
+
             pane.getChildren().addAll(handle);
         }
     }
@@ -450,6 +465,7 @@ public class GradientPicker extends Region {
                                   .collect(Collectors.toList());
         gradient = new LinearGradient(0.0, 0.0, 1.0, 0.0, true, CycleMethod.NO_CYCLE, stops);
         gradientBox.setFill(gradient);
+        fireGradientEvent(GRADIENT_CHANGED);
     }
 
     private Color calculateColor(final double FRACTION) {
@@ -515,7 +531,7 @@ public class GradientPicker extends Region {
         final double popupY = EVENT.getScreenY() - alphaPopupBounds.getHeight() * 1.7;
         alphaPopup.show(SCENE.getWindow(), popupX, popupY);
     }
-    
+
     private void showPositionPopup(final Scene SCENE, final MouseEvent EVENT) {
         if (null == SCENE) return;
         final double popupX = EVENT.getScreenX() - positionPopupBounds.getWidth() * 0.5;
@@ -523,6 +539,13 @@ public class GradientPicker extends Region {
         positionTextField.setText(String.format(Locale.US, "%.3f", selectedHandle.getFraction()));
         positionPopup.show(SCENE.getWindow(), popupX, popupY);
     }
+
+
+    // ******************** EventHandling *************************************
+    public void addGradientObserver(final GradientObserver OBSERVER) { if (!observers.contains(OBSERVER)) { observers.add(OBSERVER); } }
+    public void removeGradientObserver(final GradientObserver OBSERVER) { if (observers.contains(OBSERVER)) { observers.remove(OBSERVER); } }
+
+    private void fireGradientEvent(final GradientEvent EVT) { for (GradientObserver observer : observers) { observer.onGradientChanged(EVT); } }
 
 
     // ******************** Resizing ******************************************

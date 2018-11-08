@@ -2,15 +2,14 @@ package eu.hansolo.fx.gradientpicker;
 
 
 import eu.hansolo.fx.gradientpicker.event.HandleEvent;
-import eu.hansolo.fx.gradientpicker.event.HandleEventListener;
+import eu.hansolo.fx.gradientpicker.event.HandleObserver;
 import eu.hansolo.fx.gradientpicker.event.HandleEventType;
+import eu.hansolo.fx.gradientpicker.tool.Helper;
 import javafx.beans.DefaultProperty;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.DoublePropertyBase;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ObjectPropertyBase;
-import javafx.beans.property.StringProperty;
-import javafx.beans.property.StringPropertyBase;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -18,9 +17,9 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.CornerRadii;
-import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.ClosePath;
 import javafx.scene.shape.LineTo;
 import javafx.scene.shape.MoveTo;
@@ -42,31 +41,32 @@ import static eu.hansolo.fx.gradientpicker.tool.Helper.clamp;
  */
 @DefaultProperty("children")
 public class Handle extends Region implements Comparable<Handle>{
-    private static final double                     PREFERRED_WIDTH  = 9;
-    private static final double                     PREFERRED_HEIGHT = 13;
-    private static final double                     MINIMUM_WIDTH    = 9;
-    private static final double                     MINIMUM_HEIGHT   = 13;
-    private static final double                     MAXIMUM_WIDTH    = 9;
-    private static final double                     MAXIMUM_HEIGHT   = 13;
+    public  static final double                     HANDLE_SIZE      = 12;
+    private static final double                     PREFERRED_WIDTH  = HANDLE_SIZE;
+    private static final double                     PREFERRED_HEIGHT = HANDLE_SIZE;
+    private static final double                     MINIMUM_WIDTH    = HANDLE_SIZE;
+    private static final double                     MINIMUM_HEIGHT   = HANDLE_SIZE;
+    private static final double                     MAXIMUM_WIDTH    = HANDLE_SIZE;
+    private static final double                     MAXIMUM_HEIGHT   = HANDLE_SIZE;
     private static final double                     ASPECT_RATIO     = PREFERRED_HEIGHT / PREFERRED_WIDTH;
     private        final HandleEvent                COLOR_EVENT      = new HandleEvent(Handle.this, HandleEventType.COLOR);
     private        final HandleEvent                ALPHA_EVENT      = new HandleEvent(Handle.this, HandleEventType.ALPHA);
-    private        final HandleEvent                FRACTION_EVENT   = new HandleEvent(Handle.this, HandleEventType.FRACTION);
-    private        final HandleEvent                TYPE_EVENT       = new HandleEvent(Handle.this, HandleEventType.TYPE);
-    private              List<HandleEventListener>  listeners;
-    private              double                     size;
-    private              double                     width;
-    private              double                     height;
-    private              Path                       path;
-    private              Color                      _fill;
-    private              ObjectProperty<Color>      fill;
-    private              Color                      _stroke;
-    private              ObjectProperty<Color>      stroke;
-    private              double                     _alpha;
-    private              DoubleProperty             alpha;
-    private              double                     _fraction;
-    private              DoubleProperty             fraction;
-    private              HandleType                 _type;
+    private        final HandleEvent           FRACTION_EVENT   = new HandleEvent(Handle.this, HandleEventType.FRACTION);
+    private        final HandleEvent           TYPE_EVENT       = new HandleEvent(Handle.this, HandleEventType.TYPE);
+    private              List<HandleObserver>  observers;
+    private              double                size;
+    private              double                width;
+    private              double                height;
+    private              Circle                path;
+    private              Color                 _fill;
+    private              ObjectProperty<Color> fill;
+    private              Color                 _stroke;
+    private              ObjectProperty<Color> stroke;
+    private              double                _alpha;
+    private              DoubleProperty        alpha;
+    private              double                _fraction;
+    private              DoubleProperty        fraction;
+    private              HandleType            _type;
     private              ObjectProperty<HandleType> type;
     private              Color                      _focusColor;
     private              ObjectProperty<Color>      focusColor;
@@ -77,16 +77,16 @@ public class Handle extends Region implements Comparable<Handle>{
 
     // ******************** Constructors **************************************
     public Handle() {
-        this(HandleType.COLOR_HANDLE, 0, Color.BLACK, 1.0, Color.BLACK);
+        this(HandleType.COLOR_HANDLE, 0, Color.web("#282828"), 1.0, Color.web("#282828"));
     }
     public Handle(final HandleType TYPE, final double FRACTION, final Color FILL) {
-        this(TYPE, FRACTION, FILL, 1.0, Color.BLACK);
+        this(TYPE, FRACTION, FILL, 1.0, Color.web("#282828"));
     }
     public Handle(final HandleType TYPE, final double FRACTION, final double ALPHA) {
-        this(TYPE, FRACTION, Color.BLACK, ALPHA, Color.BLACK);
+        this(TYPE, FRACTION, Color.web("#282828"), ALPHA, Color.web("#282828"));
     }
     public Handle(final HandleType TYPE, final double FRACTION, final Color FILL, final double ALPHA, final Color STROKE) {
-        listeners    = new CopyOnWriteArrayList<>();
+        observers    = new CopyOnWriteArrayList<>();
         _type        = TYPE;
         _fraction    = FRACTION;
         _fill        = FILL;
@@ -115,14 +115,7 @@ public class Handle extends Region implements Comparable<Handle>{
             }
         }
 
-        MoveTo    moveTo    = new MoveTo(0, 0);
-        LineTo    lineTo1   = new LineTo(9, 0);
-        LineTo    lineTo2   = new LineTo(9, 9);
-        LineTo    lineTo3   = new LineTo(4.5, 13);
-        LineTo    lineTo4   = new LineTo(0, 9);
-        ClosePath closePath = new ClosePath();
-
-        path = new Path(moveTo, lineTo1, lineTo2, lineTo3, lineTo4, closePath);
+        path = new Circle(HANDLE_SIZE * 0.5);
         path.setStrokeWidth(1);
         path.setFill(getFill());
         path.setStroke(getStroke());
@@ -131,7 +124,7 @@ public class Handle extends Region implements Comparable<Handle>{
         setShape(path);
 
         setBackground(new Background(new BackgroundFill(getStroke(), CornerRadii.EMPTY, Insets.EMPTY),
-                                     new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, new Insets(1)),
+                                     new BackgroundFill(Color.web("#dbdbdb"), CornerRadii.EMPTY, new Insets(1)),
                                      new BackgroundFill(getFill(), CornerRadii.EMPTY, new Insets(2))));
 
         if (HandleType.COLOR_HANDLE == getType()) { setRotate(180); }
@@ -210,7 +203,7 @@ public class Handle extends Region implements Comparable<Handle>{
     public double getAlpha() { return null == alpha ? _alpha : alpha.get(); }
     public void setAlpha(final double ALPHA) {
         if (null == alpha) {
-            _alpha = clamp(0.0, 1.0, ALPHA);
+            _alpha = Helper.clamp(0.0, 1.0, ALPHA);
             fireHandleEvent(ALPHA_EVENT);
         } else {
             alpha.set(ALPHA);
@@ -220,7 +213,7 @@ public class Handle extends Region implements Comparable<Handle>{
         if (null == alpha) {
             alpha = new DoublePropertyBase() {
                 @Override protected void invalidated() {
-                    set(clamp(0.0, 1.0, get()));
+                    set(Helper.clamp(0.0, 1.0, get()));
                     fireHandleEvent(ALPHA_EVENT);
                 }
                 @Override public Object getBean() { return Handle.this; }
@@ -233,7 +226,7 @@ public class Handle extends Region implements Comparable<Handle>{
     public double getFraction() { return null == fraction ? _fraction : fraction.get(); }
     public void setFraction(final double FRACTION) {
         if (null == fraction) {
-            _fraction = clamp(0.0, 1.0, FRACTION);
+            _fraction = Helper.clamp(0.0, 1.0, FRACTION);
             fireHandleEvent(FRACTION_EVENT);
         } else {
             fraction.set(FRACTION);
@@ -243,7 +236,7 @@ public class Handle extends Region implements Comparable<Handle>{
         if (null == fraction) {
             fraction = new DoublePropertyBase() {
                 @Override protected void invalidated() {
-                    set(clamp(0.0, 1.0, get()));
+                    set(Helper.clamp(0.0, 1.0, get()));
                     fireHandleEvent(FRACTION_EVENT);
                 }
                 @Override public Object getBean() { return Handle.this; }
@@ -326,14 +319,14 @@ public class Handle extends Region implements Comparable<Handle>{
 
 
     // ******************** EventHandling *************************************
-    public void addHandleEventListener(final HandleEventListener LISTENER) {
-        if (!listeners.contains(LISTENER)) { listeners.add(LISTENER); }
+    public void addHandleEventListener(final HandleObserver OBSERVER) {
+        if (!observers.contains(OBSERVER)) { observers.add(OBSERVER); }
     }
-    public void removeHandleEventListener(final HandleEventListener LISTENER) {
-        if (listeners.contains(LISTENER)) { listeners.remove(LISTENER); }
+    public void removeHandleEventListener(final HandleObserver OBSERVER) {
+        if (observers.contains(OBSERVER)) { observers.remove(OBSERVER); }
     }
     public void fireHandleEvent(final HandleEvent EVENT) {
-        listeners.forEach(listener -> listener.onHandleEvent(EVENT));
+        observers.forEach(observer -> observer.onHandleEvent(EVENT));
     }
 
 
@@ -350,12 +343,6 @@ public class Handle extends Region implements Comparable<Handle>{
         }
 
         if (width > 0 && height > 0) {
-            //pane.setMaxSize(width, height);
-            //pane.setPrefSize(width, height);
-            //pane.relocate((getWidth() - width) * 0.5, (getHeight() - height) * 0.5);
-
-            //path.relocate((width - PREFERRED_WIDTH) * 0.5, (height - PREFERRED_HEIGHT) * 0.5);
-
             setMaxSize(width, height);
             setPrefSize(width, height);
         }
